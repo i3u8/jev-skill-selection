@@ -45,13 +45,18 @@ def test_selection_keeps_git_ops(skills_root: Path, isolated_home: Path):
     assert "KEPT" in ctx
 
 
-def test_handle_stdin_additional_context_contains_kept(skills_root: Path, isolated_home: Path, monkeypatch):
+def test_handle_stdin_soft_mode_additional_context(
+    skills_root: Path, isolated_home: Path, tmp_path: Path, monkeypatch
+):
     monkeypatch.setenv("JEV_SKILL_ROOTS", str(skills_root))
     monkeypatch.setenv("JEV_MODE", "local")
     monkeypatch.setenv("JEV_THRESHOLD", "0.1")
+    monkeypatch.setenv("JEV_FILTER_MODE", "soft")
+    cwd = tmp_path / "proj"
+    cwd.mkdir()
     payload = {
         "prompt": "create a powerpoint pitch deck",
-        "cwd": str(skills_root.parent),
+        "cwd": str(cwd),
         "hook_event_name": "UserPromptSubmit",
     }
     out = handle_user_prompt_submit_stdin(json.dumps(payload), host="claude_code")
@@ -61,25 +66,29 @@ def test_handle_stdin_additional_context_contains_kept(skills_root: Path, isolat
 
 
 @pytest.mark.parametrize("host_script", ["claude_code/hook.py", "codex/hook.py"])
-def test_hook_script_subprocess(
+def test_hook_script_subprocess_soft(
     host_script: str,
     adapters_root: Path,
     skills_root: Path,
     repo_root: Path,
     isolated_home: Path,
+    tmp_path: Path,
     monkeypatch,
 ):
     monkeypatch.setenv("JEV_SKILL_ROOTS", str(skills_root))
     monkeypatch.setenv("JEV_MODE", "local")
     monkeypatch.setenv("JEV_THRESHOLD", "0.1")
+    monkeypatch.setenv("JEV_FILTER_MODE", "soft")
     monkeypatch.setenv("PYTHONPATH", str(repo_root / "src") + os.pathsep + os.environ.get("PYTHONPATH", ""))
     script = adapters_root / host_script
     payload = json.dumps(
         {
             "prompt": "docker compose up my stack",
+            "cwd": str(tmp_path / "proj"),
             "hook_event_name": "UserPromptSubmit",
         }
     )
+    (tmp_path / "proj").mkdir(exist_ok=True)
     proc = subprocess.run(
         [sys.executable, str(script)],
         input=payload,

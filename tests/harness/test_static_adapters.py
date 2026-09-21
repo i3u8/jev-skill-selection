@@ -45,6 +45,7 @@ def test_hermes_plugin_yaml_valid(adapters_root: Path):
     assert "name: jev-skill-selection" in text or 'name: "jev-skill-selection"' in text
     assert "entry:" in text
     assert "pre_llm_call" in text
+    assert "llm_request" in text
     try:
         import yaml  # type: ignore
 
@@ -52,6 +53,7 @@ def test_hermes_plugin_yaml_valid(adapters_root: Path):
         assert data["name"] == "jev-skill-selection"
         assert data.get("entry") == "__init__.py"
         assert "pre_llm_call" in (data.get("hooks") or [])
+        assert "llm_request" in (data.get("provides_middleware") or [])
     except ImportError:
         pass  # structural string checks above are enough offline
 
@@ -82,3 +84,4 @@ def test_hook_scripts_importable(adapters_root: Path, repo_root: Path):
     spec.loader.exec_module(mod)
     assert callable(mod.register)
     assert callable(mod.on_pre_llm_call)
+    assert callable(mod.on_llm_request)

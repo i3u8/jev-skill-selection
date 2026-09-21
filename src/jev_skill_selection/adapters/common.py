@@ -1,24 +1,56 @@
 """Shared helpers for host hook/plugin adapters.
 
-Soft-inject path: parse host stdin → :func:`~jev_skill_selection.hook.before_first_message`
-→ emit host-shaped stdout (Claude/Codex ``UserPromptSubmit`` JSON, Hermes context dict, …).
+Hard-filter is the **default** when a host supports removing dropped skills
+from the model-facing skill index / tool list (token savings). Soft inject
+(additionalContext / advice text) is optional via ``JEV_FILTER_MODE``.
 
-Hard-filter (host-specific, optional phase-2) is documented per adapter README and is
-*not* performed here — this module only produces keep/drop context.
+Modes (``JEV_FILTER_MODE``):
+  - ``hard`` (default): host-native disable/override only where supported
+  - ``soft``: advice/context inject only (skills bodies may still be listed)
+  - ``both``: hard path + soft inject
 """
 
 from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Literal, Mapping, Sequence
 
 from ..hook import HookContext, HookOutcome, before_first_message
 from ..models import SelectionOptions
 
 # Soft-inject budget: Claude Code caps additionalContext ~10k chars.
 _DEFAULT_CONTEXT_BUDGET = 9000
+
+FilterMode = Literal["hard", "soft", "both"]
+
+_CODEX_MANAGED_BEGIN = "# BEGIN jev-skill-selection managed"
+_CODEX_MANAGED_END = "# END jev-skill-selection managed"
+
+_AVAILABLE_SKILLS_RE = re.compile(
+    r"<available_skills>.*?</available_skills>",
+    re.DOTALL | re.IGNORECASE,
+)
+
+
+def filter_mode_from_env(default: FilterMode = "hard") -> FilterMode:
+    """Return ``hard`` | ``soft`` | ``both`` from ``JEV_FILTER_MODE`` (default hard)."""
+    raw = os.environ.get("JEV_FILTER_MODE", default).strip().lower() or default
+    if raw in ("hard", "soft", "both"):
+        return raw  # type: ignore[return-value]
+    return default
+
+
+def wants_hard(mode: FilterMode | None = None) -> bool:
+    m = mode if mode is not None else filter_mode_from_env()
+    return m in ("hard", "both")
+
+
+def wants_soft(mode: FilterMode | None = None) -> bool:
+    m = mode if mode is not None else filter_mode_from_env()
+    return m in ("soft", "both")
 
 
 def default_skill_roots(host: str, *, home: Path | None = None, cwd: Path | None = None) -> list[Path]:
@@ -53,7 +85,6 @@ def default_skill_roots(host: str, *, home: Path | None = None, cwd: Path | None
         return [
             cwd / ".opencode" / "skills",
             xdg / "opencode" / "skills",
-            # Compat paths (OpenCode can load Claude/Agents skills):
             cwd / ".claude" / "skills",
             home / ".claude" / "skills",
             cwd / ".agents" / "skills",
@@ -109,10 +140,7 @@ def options_from_env(defaults: SelectionOptions | None = None) -> SelectionOptio
 
 
 def parse_user_prompt_submit(payload: Mapping[str, Any] | str | bytes) -> dict[str, Any]:
-    """Normalize Claude/Codex ``UserPromptSubmit`` stdin JSON.
-
-    Returns a dict with at least ``prompt`` (str) and the raw payload under ``raw``.
-    """
+    """Normalize Claude/Codex ``UserPromptSubmit`` stdin JSON."""
     if isinstance(payload, (bytes, bytearray)):
         payload = payload.decode("utf-8")
     if isinstance(payload, str):
@@ -199,6 +227,175 @@ def emit_user_prompt_submit(
     }
 
 
+def build_claude_skill_overrides(
+    kept_names: Sequence[str],
+    dropped_names: Sequence[str],
+) -> dict[str, str]:
+    """Map skill names → Claude Code ``skillOverrides`` values.
+
+    Verified against Claude Code docs/settings: values are
+    ``on`` | ``name-only`` | ``user-invocable-only`` | ``off``.
+    """
+    overrides: dict[str, str] = {}
+    for name in dropped_names:
+        if name:
+            overrides[str(name)] = "off"
+    for name in kept_names:
+        if name:
+            overrides[str(name)] = "on"
+    return overrides
+
+
+def resolve_claude_settings_path(*, cwd: Path | None = None, home: Path | None = None) -> Path:
+    """Prefer project ``.claude/settings.local.json``, else user settings."""
+    home = home or Path.home()
+    if cwd is not None:
+        return Path(cwd) / ".claude" / "settings.local.json"
+    return home / ".claude" / "settings.json"
+
+
+def apply_claude_skill_overrides(
+    settings_path: Path,
+    overrides: Mapping[str, str],
+) -> dict[str, str]:
+    """Merge ``skillOverrides`` into a Claude settings JSON file."""
+    settings_path = Path(settings_path)
+    data: dict[str, Any] = {}
+    if settings_path.is_file():
+        try:
+            raw = json.loads(settings_path.read_text(encoding="utf-8"))
+            if isinstance(raw, dict):
+                data = raw
+        except (json.JSONDecodeError, OSError):
+            data = {}
+
+    existing = data.get("skillOverrides")
+    merged: dict[str, str] = {}
+    if isinstance(existing, dict):
+        for k, v in existing.items():
+            if isinstance(k, str) and isinstance(v, str):
+                merged[k] = v
+    merged.update({str(k): str(v) for k, v in overrides.items()})
+    data["skillOverrides"] = merged
+
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = settings_path.with_suffix(settings_path.suffix + ".tmp")
+    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    tmp.replace(settings_path)
+    return merged
+
+
+def build_codex_skills_config_entries(dropped_names: Sequence[str]) -> list[dict[str, Any]]:
+    """Codex ``[[skills.config]]`` rows: ``name`` + ``enabled=false`` for drops."""
+    return [{"name": str(n), "enabled": False} for n in dropped_names if n]
+
+
+def render_codex_skills_config_toml(dropped_names: Sequence[str]) -> str:
+    """TOML fragment for managed Codex skill disables."""
+    lines = [_CODEX_MANAGED_BEGIN, "# Dropped skills — hard filter (jev-skill-selection)"]
+    for name in dropped_names:
+        if not name:
+            continue
+        safe = str(name).replace("\\", "\\\\").replace('"', '\\"')
+        lines.append("[[skills.config]]")
+        lines.append(f'name = "{safe}"')
+        lines.append("enabled = false")
+        lines.append("")
+    lines.append(_CODEX_MANAGED_END)
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def apply_codex_skills_config(
+    config_path: Path,
+    dropped_names: Sequence[str],
+) -> list[str]:
+    """Rewrite the managed ``[[skills.config]]`` block in Codex ``config.toml``."""
+    config_path = Path(config_path)
+    text = ""
+    if config_path.is_file():
+        try:
+            text = config_path.read_text(encoding="utf-8")
+        except OSError:
+            text = ""
+
+    begin = text.find(_CODEX_MANAGED_BEGIN)
+    end = text.find(_CODEX_MANAGED_END)
+    if begin != -1 and end != -1 and end > begin:
+        end_line = end + len(_CODEX_MANAGED_END)
+        if end_line < len(text) and text[end_line] == "\n":
+            end_line += 1
+        text = text[:begin] + text[end_line:]
+
+    text = text.rstrip() + ("\n\n" if text.strip() else "")
+    names = [str(n) for n in dropped_names if n]
+    text += render_codex_skills_config_toml(names)
+
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = config_path.with_suffix(config_path.suffix + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(config_path)
+    return names
+
+
+def resolve_codex_config_path(*, home: Path | None = None) -> Path:
+    home = home or Path.home()
+    override = os.environ.get("CODEX_HOME", "").strip()
+    if override:
+        return Path(override).expanduser() / "config.toml"
+    return home / ".codex" / "config.toml"
+
+
+def filter_available_skills_xml(text: str, kept_names: set[str]) -> str:
+    """Remove dropped skill lines from Hermes ``<available_skills>`` blocks."""
+
+    def _repl(match: re.Match[str]) -> str:
+        block = match.group(0)
+        out_lines: list[str] = []
+        for line in block.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("- "):
+                rest = stripped[2:]
+                name = rest.split(":", 1)[0].strip()
+                if name and name not in kept_names:
+                    continue
+            out_lines.append(line)
+        return "\n".join(out_lines)
+
+    return _AVAILABLE_SKILLS_RE.sub(_repl, text)
+
+
+def _filter_string_content(value: Any, kept_names: set[str]) -> Any:
+    if isinstance(value, str):
+        if "<available_skills>" in value.lower():
+            return filter_available_skills_xml(value, kept_names)
+        return value
+    if isinstance(value, list):
+        return [_filter_string_content(v, kept_names) for v in value]
+    if isinstance(value, dict):
+        return {k: _filter_string_content(v, kept_names) for k, v in value.items()}
+    return value
+
+
+def filter_hermes_llm_request(
+    request: Mapping[str, Any],
+    kept_names: Sequence[str],
+) -> dict[str, Any]:
+    """Hard-filter Hermes provider kwargs: strip dropped skills from messages."""
+    kept = {str(n) for n in kept_names if n}
+    out = dict(request)
+    for key in ("messages", "input"):
+        if key in out:
+            out[key] = _filter_string_content(out[key], kept)
+    for key in ("extra_body", "body"):
+        if isinstance(out.get(key), dict):
+            nested = dict(out[key])
+            for nk in ("messages", "input"):
+                if nk in nested:
+                    nested[nk] = _filter_string_content(nested[nk], kept)
+            out[key] = nested
+    return out
+
+
 def run_selection(
     user_message: str,
     *,
@@ -216,18 +413,16 @@ def run_selection(
     )
 
 
-
 def e2e_log_selection(
     *,
     host: str,
     message: str,
     outcome: HookOutcome,
     soft_context: str | None = None,
+    filter_mode: str | None = None,
+    hard_applied: bool | None = None,
 ) -> None:
-    """Append a JSON line to ``JEV_E2E_LOG`` when set (live harness side-channel).
-
-    Never writes secrets. Safe no-op when the env var is unset or unwritable.
-    """
+    """Append a JSON line to ``JEV_E2E_LOG`` when set (live harness side-channel)."""
     log_path = os.environ.get("JEV_E2E_LOG", "").strip()
     if not log_path:
         return
@@ -238,6 +433,8 @@ def e2e_log_selection(
         "host": host,
         "message": message[:500],
         "mode": outcome.result.mode,
+        "filter_mode": filter_mode or filter_mode_from_env(),
+        "hard_applied": hard_applied,
         "kept_names": list(outcome.result.kept_names),
         "dropped_names": list(outcome.result.dropped_names),
         "chars_saved": outcome.result.chars_saved,
@@ -259,8 +456,10 @@ def handle_user_prompt_submit_stdin(
     host: str,
     skill_roots: Sequence[str | Path] | None = None,
     options: SelectionOptions | None = None,
+    filter_mode: FilterMode | None = None,
 ) -> dict[str, Any]:
-    """End-to-end: stdin JSON → selection → Claude/Codex stdout dict."""
+    """End-to-end: stdin JSON → selection → hard filter (default) + optional soft stdout."""
+    mode = filter_mode if filter_mode is not None else filter_mode_from_env()
     parsed = parse_user_prompt_submit(stdin_text)
     cwd = Path(parsed["cwd"]) if parsed.get("cwd") else None
     outcome = run_selection(
@@ -271,6 +470,47 @@ def handle_user_prompt_submit_stdin(
         cwd=cwd,
     )
     event = parsed.get("hook_event_name") or "UserPromptSubmit"
-    ctx = build_soft_context(outcome)
-    e2e_log_selection(host=host, message=parsed["prompt"], outcome=outcome, soft_context=ctx)
-    return emit_user_prompt_submit(ctx, hook_event_name=str(event))
+    hard_applied = False
+    soft_ctx = ""
+
+    host_key = host.lower().replace("-", "_")
+    if wants_hard(mode):
+        if host_key in ("claude", "claude_code"):
+            overrides = build_claude_skill_overrides(
+                outcome.result.kept_names, outcome.result.dropped_names
+            )
+            path = resolve_claude_settings_path(cwd=cwd)
+            apply_claude_skill_overrides(path, overrides)
+            hard_applied = True
+        elif host_key == "codex":
+            apply_codex_skills_config(
+                resolve_codex_config_path(),
+                outcome.result.dropped_names,
+            )
+            hard_applied = True
+
+    if wants_soft(mode):
+        soft_ctx = build_soft_context(outcome)
+        e2e_log_selection(
+            host=host,
+            message=parsed["prompt"],
+            outcome=outcome,
+            soft_context=soft_ctx,
+            filter_mode=mode,
+            hard_applied=hard_applied,
+        )
+        return emit_user_prompt_submit(soft_ctx, hook_event_name=str(event))
+
+    e2e_log_selection(
+        host=host,
+        message=parsed["prompt"],
+        outcome=outcome,
+        soft_context=None,
+        filter_mode=mode,
+        hard_applied=hard_applied,
+    )
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": str(event),
+        }
+    }

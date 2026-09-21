@@ -16,6 +16,8 @@ def test_opencode_ts_structural(adapters_root: Path):
     assert "tool.definition" in text
     assert "runSelectCli" in text
     assert "available_skills" in text
+    assert "filterModeFromEnv" in text
+    assert "JEV_FILTER_MODE" in text
     assert "jev_skill_selection" in text
     # Exported factory
     assert re.search(r"export\s+function\s+createJevSkillSelectionPlugin", text)

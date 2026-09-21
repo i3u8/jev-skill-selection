@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Codex UserPromptSubmit hook — same wire format as Claude Code.
+"""Codex UserPromptSubmit hook — hard-filter via skills.config by default.
 
-Skill roots: ~/.agents/skills, .agents/skills, ~/.codex/skills.
-Soft inject only; hard disable via [[skills.config]] enabled=false is documented
-in README (optional, not performed by this script).
+Default (``JEV_FILTER_MODE=hard``): write ``[[skills.config]]`` with
+``enabled = false`` for dropped skill names into ``~/.codex/config.toml``.
 """
 
 from __future__ import annotations

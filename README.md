@@ -118,18 +118,21 @@ system_prompt_extra = "\n\n".join(outcome.prompt_blocks)
 
 ## Host adapters
 
-Thin adapters under `adapters/`. Full install paths → **[docs/INTEGRATION.md](docs/INTEGRATION.md)**.
+Thin adapters under `adapters/` **hard-filter** dropped skills by default (token savings).
+Soft inject remains optional via `JEV_FILTER_MODE=soft|both`.
+Full install paths → **[docs/INTEGRATION.md](docs/INTEGRATION.md)**.
 
 Live e2e: mock LLM + optional real Jev (`./scripts/run_live_e2e.sh`).
 
-| Host | Path | Soft (ships today) | Hard (goal) |
+| Host | Path | Hard (default) | Soft (optional) |
 | --- | --- | --- | --- |
-| **Claude Code** | `adapters/claude_code/` | `UserPromptSubmit` → `additionalContext` | `skillOverrides` optional / phase 2 — **not wired by hook** |
-| **Codex** | `adapters/codex/` | same wire as Claude | `[[skills.config]] enabled=false` — **not automated by hook** |
-| **Hermes** | `adapters/hermes/` | `pre_llm_call` → `context` | `llm_request` middleware — **not implemented** |
-| **OpenCode** | `adapters/opencode/` | `chat.message` | `tool.definition` filters `available_skills` **when present** |
+| **Claude Code** | `adapters/claude_code/` | `skillOverrides` → `"off"` | `UserPromptSubmit` → `additionalContext` |
+| **Codex** | `adapters/codex/` | `[[skills.config]] enabled=false` (may need restart) | same wire soft inject |
+| **Hermes** | `adapters/hermes/` | `llm_request` strips `<available_skills>` | `pre_llm_call` → `context` |
+| **OpenCode** | `adapters/opencode/` | `tool.definition` filters `available_skills` | `chat.message` |
 
-Default `JEV_MODE=local` (no API key). Soft inject is what all four ship; hard filter is preferred where the host allows it.
+Shared helpers: `jev_skill_selection.adapters.common`. Defaults: `JEV_MODE=local`, `JEV_FILTER_MODE=hard`.
+
 
 ## Architecture
 

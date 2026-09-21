@@ -3,15 +3,19 @@
 Pre-message **keep/drop** of many skills for context size — not single-skill suggestion.
 Default selection mode is **local** (no `TYPESAFE_API_KEY`). Set `JEV_MODE=jev` when using TypeSafe.
 
-Shared helper: `jev_skill_selection.adapters.common` (parse stdin → `before_first_message` → host stdout).
+**Filter mode default is hard** (`JEV_FILTER_MODE=hard`): dropped skills are removed from
+host-facing skill lists / overrides / config **before** the model sees them (token savings).
+Soft inject (`additionalContext` / advice text) alone leaves skill bodies/listings in context.
+
+Shared helper: `jev_skill_selection.adapters.common` (parse stdin → `before_first_message` → hard path + optional soft stdout).
 CLI: `python -m jev_skill_selection select --root … --mode local -m "…" --json`.
 
-| Host | Soft inject | Hard filter |
-| --- | --- | --- |
-| Claude Code | `UserPromptSubmit` → `additionalContext` | Optional phase-2: `skillOverrides` (not in hook) |
-| Codex | Same wire as Claude | Optional: `[[skills.config]] enabled=false` |
-| Hermes | `pre_llm_call` → `{"context":…}` | Optional later: `llm_request` middleware |
-| OpenCode | `chat.message` context | `tool.definition` filters `available_skills` |
+| Host | Soft inject | Hard filter (default) | Notes |
+| --- | --- | --- | --- |
+| Claude Code | `UserPromptSubmit` → `additionalContext` | Writes `skillOverrides` (`"off"` for drops) to `.claude/settings.local.json` | Verified Claude Code settings API |
+| Codex | Same wire as Claude | `[[skills.config]] name=… enabled=false` in `~/.codex/config.toml` | May need Codex **restart** for config to apply |
+| Hermes | `pre_llm_call` → `{"context":…}` | `llm_request` middleware strips `<available_skills>` | Soft is fallback only |
+| OpenCode | `chat.message` context | `tool.definition` filters `available_skills` | Soft secondary |
 
 ---
 
@@ -23,6 +27,8 @@ CLI: `python -m jev_skill_selection select --root … --mode local -m "…" --js
 
 Skills: `.claude/skills`, `~/.claude/skills`.
 
+Hard path uses documented `skillOverrides` values: `on` | `name-only` | `user-invocable-only` | `off`.
+
 ---
 
 ## Codex
@@ -32,6 +38,9 @@ Skills: `.claude/skills`, `~/.claude/skills`.
 3. Point at `adapters/codex/hook.py`.
 
 Skills: `.agents/skills`, `~/.agents/skills`, `~/.codex/skills`.
+
+Hard path appends a managed block to `~/.codex/config.toml` (or `$CODEX_HOME/config.toml`).
+Codex documents that config changes may require a restart — see adapter README.
 
 ---
 
@@ -43,13 +52,15 @@ Skills: `.agents/skills`, `~/.agents/skills`, `~/.codex/skills`.
 
 Skills: `$HERMES_HOME/skills` (default `~/.hermes/skills`).
 
+Hard path: `provides_middleware: [llm_request]` rewrites provider kwargs. Soft `pre_llm_call` only when `JEV_FILTER_MODE=soft|both`.
+
 ---
 
 ## OpenCode
 
 1. Install package (`python3 -m jev_skill_selection` must work).
 2. Register `adapters/opencode` as an OpenCode plugin (see that host’s plugin docs / `@opencode-ai/plugin`).
-3. Soft via `chat.message`; hard via `tool.definition` when the skill tool exposes `available_skills`.
+3. Hard via `tool.definition` (default); soft via `chat.message` when requested.
 
 Skills: `.opencode/skills`, `~/.config/opencode/skills`, plus Claude/Agents compat paths.
 
@@ -59,6 +70,7 @@ Skills: `.opencode/skills`, `~/.config/opencode/skills`, plus Claude/Agents comp
 
 | Variable | Meaning |
 | --- | --- |
+| `JEV_FILTER_MODE` | `hard` (default) \| `soft` \| `both` |
 | `JEV_MODE` | `local` (default) or `jev` |
 | `JEV_THRESHOLD` | Keep score cutoff (default `0.45`) |
 | `JEV_MAX_KEEP` | Optional cap |

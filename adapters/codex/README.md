@@ -1,31 +1,20 @@
 # Codex adapter
 
-Uses the same **UserPromptSubmit** stdin/stdout JSON as Claude Code (soft inject → `additionalContext`).
+**Hard filter (default):** write managed `[[skills.config]]` entries into
+`~/.codex/config.toml` (or `$CODEX_HOME/config.toml`) with `name` + `enabled = false`
+for each dropped skill.
+
+**Soft inject (optional):** `JEV_FILTER_MODE=soft` or `both`.
+
+**Limitation:** Codex may require a **restart** for `config.toml` changes to fully apply.
+Use `JEV_FILTER_MODE=both` for same-session soft advice.
 
 ## Skill roots
 
-- `.agents/skills`
-- `~/.agents/skills`
-- `~/.codex/skills`
+- `.agents/skills`, `~/.agents/skills`, `~/.codex/skills`
 
 ## Install
 
 1. `pip install -e /path/to/jev-skill-selection`
-2. Copy/merge `hooks.example.json` into your Codex hooks config (often `hooks.json` next to the agent, or the host’s documented hooks path).
-3. Point `args` at `adapters/codex/hook.py`.
-
-## Soft vs hard
-
-| Mode | What you get |
-| --- | --- |
-| Soft (this hook) | Keep/drop context injected before the model turn |
-| Hard (optional) | In Codex config, set `[[skills.config]]` with `enabled = false` for dropped names after a selection pass — not automated here |
-
-```toml
-# Example hard filter (manual / scripted), not done by the hook:
-# [[skills.config]]
-# name = "pptx-author"
-# enabled = false
-```
-
-Env: `JEV_MODE`, `JEV_THRESHOLD`, `JEV_SKILL_ROOTS`, …
+2. Merge `hooks.example.json` into Codex hooks config
+3. Point at `adapters/codex/hook.py`

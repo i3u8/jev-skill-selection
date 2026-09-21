@@ -5,8 +5,6 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
-from jev_skill_selection.models import SelectionOptions
-
 
 def _load_hermes(adapters_root: Path, repo_root: Path):
     src = repo_root / "src"
@@ -23,17 +21,23 @@ def _load_hermes(adapters_root: Path, repo_root: Path):
 def test_hermes_register_smoke(adapters_root: Path, repo_root: Path, isolated_home: Path):
     mod = _load_hermes(adapters_root, repo_root)
     registered: dict = {}
+    registered_mw: dict = {}
 
     class FakeCtx:
         def register_hook(self, name, fn):
             registered[name] = fn
 
+        def register_middleware(self, kind, fn):
+            registered_mw[kind] = fn
+
     mod.register(FakeCtx())
     assert "pre_llm_call" in registered
     assert registered["pre_llm_call"] is mod.on_pre_llm_call
+    assert "llm_request" in registered_mw
+    assert registered_mw["llm_request"] is mod.on_llm_request
 
 
-def test_hermes_on_pre_llm_call_context(
+def test_hermes_on_pre_llm_call_soft_mode(
     adapters_root: Path,
     repo_root: Path,
     skills_root: Path,
@@ -43,6 +47,7 @@ def test_hermes_on_pre_llm_call_context(
     monkeypatch.setenv("JEV_SKILL_ROOTS", str(skills_root))
     monkeypatch.setenv("JEV_MODE", "local")
     monkeypatch.setenv("JEV_THRESHOLD", "0.1")
+    monkeypatch.setenv("JEV_FILTER_MODE", "soft")
     mod = _load_hermes(adapters_root, repo_root)
     out = mod.on_pre_llm_call({"message": "rebase my branch and open a PR"})
     assert "context" in out
@@ -51,7 +56,7 @@ def test_hermes_on_pre_llm_call_context(
 
 def test_hermes_register_hooks_dict_fallback(adapters_root: Path, repo_root: Path, isolated_home: Path):
     mod = _load_hermes(adapters_root, repo_root)
-    ctx = SimpleNamespace(hooks={})
-    # No register_hook attribute
+    ctx = SimpleNamespace(hooks={}, middleware={})
     mod.register(ctx)
     assert "pre_llm_call" in ctx.hooks
+    assert "llm_request" in ctx.middleware

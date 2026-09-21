@@ -54,11 +54,11 @@ dropped: docker-compose, pptx-author, python-debug, web-search
 
 ## 为什么需要硬过滤
 
-**软注入**（四个宿主适配器今天都已交付）：通过上下文告诉模型该偏好哪些技能。
+**硬过滤**（默认，`JEV_FILTER_MODE=hard`）：丢掉无关技能，使它们**根本不会**进入工具/技能索引 —— 无法再烧 token。
 
-**硬过滤**（产品目标）：丢掉无关技能，使它们**根本不会**进入工具/技能索引 —— 无法再烧 token。
+**软注入**（可选，`soft` / `both`）：通过上下文告诉模型该偏好哪些技能；skill 正文仍可能占上下文。
 
-宿主支持时优先硬过滤；软注入是通用兜底。
+默认硬过滤；需要同会话提示时用 `both`（Codex 改 config 后可能要重启）。
 
 ## 为什么用 Jev
 
@@ -118,18 +118,19 @@ system_prompt_extra = "\n\n".join(outcome.prompt_blocks)
 
 ## 宿主适配器
 
-薄适配在 `adapters/`。完整安装步骤 → **[docs/INTEGRATION.md](docs/INTEGRATION.md)**。
+薄适配在 `adapters/`，**默认硬过滤**丢弃的技能（省 token）。软注入可用 `JEV_FILTER_MODE=soft|both`。完整安装 → **[docs/INTEGRATION.md](docs/INTEGRATION.md)**。
 
-Live e2e：mock LLM + 可选真实 Jev（`./scripts/run_live_e2e.sh`）。
+Live e2e：mock LLM + 可选真 Jev（`./scripts/run_live_e2e.sh`）。
 
-| 宿主 | 路径 | 软注入（今日已交付） | 硬过滤（目标） |
+| 宿主 | 路径 | 硬过滤（默认） | 软注入（可选） |
 | --- | --- | --- | --- |
-| **Claude Code** | `adapters/claude_code/` | `UserPromptSubmit` → `additionalContext` | `skillOverrides` 可选 / phase 2 — **hook 未接线** |
-| **Codex** | `adapters/codex/` | 与 Claude 同线 | `[[skills.config]] enabled=false` — **hook 未自动化** |
-| **Hermes** | `adapters/hermes/` | `pre_llm_call` → `context` | `llm_request` 中间件 — **未实现** |
-| **OpenCode** | `adapters/opencode/` | `chat.message` | `tool.definition` 在存在时过滤 `available_skills` |
+| **Claude Code** | `adapters/claude_code/` | `skillOverrides` → `"off"` | `UserPromptSubmit` → `additionalContext` |
+| **Codex** | `adapters/codex/` | `[[skills.config]] enabled=false`（可能需重启） | 同线软注入 |
+| **Hermes** | `adapters/hermes/` | `llm_request` 剥离 `<available_skills>` | `pre_llm_call` → `context` |
+| **OpenCode** | `adapters/opencode/` | `tool.definition` 过滤 `available_skills` | `chat.message` |
 
-默认 `JEV_MODE=local`（无需 API key）。四家今天都走软注入；硬过滤是宿主允许时的优选路径。
+共享逻辑：`jev_skill_selection.adapters.common`。默认：`JEV_MODE=local`，`JEV_FILTER_MODE=hard`。
+
 
 ## 架构
 

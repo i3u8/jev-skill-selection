@@ -91,7 +91,8 @@ CLAUDE_CODE_NOTES = """
 Claude Code
 |-----------
 Preferred: ``adapters/claude_code/hook.py`` on ``UserPromptSubmit`` (see
-``docs/INTEGRATION.md``). Soft inject → ``hookSpecificOutput.additionalContext``.
+``docs/INTEGRATION.md``). Default hard filter → ``skillOverrides`` (``"off"``).
+Optional soft inject → ``hookSpecificOutput.additionalContext``.
 
 Library-only equivalent::
 
@@ -109,6 +110,7 @@ CODEX_NOTES = """
 Codex / OpenAI-style agents
 |---------------------------
 Preferred: ``adapters/codex/hook.py`` (same UserPromptSubmit wire as Claude).
+Default hard filter → ``[[skills.config]] enabled=false`` in config.toml.
 
 Library-only::
 
