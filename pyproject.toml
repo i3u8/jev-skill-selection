@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jev-skill-selection"
+version = "0.1.0"
+description = "Pre-message hook: keep/drop agent skills with TypeSafe Jev to shrink prompt context."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "i3u8" }]
+keywords = ["typesafe", "jev", "skills", "agents", "context", "claude-code", "codex"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Libraries",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+jev-skill-selection = "jev_skill_selection.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/i3u8/jev-skill-selection"
+Documentation = "https://github.com/i3u8/jev-skill-selection#readme"
+Issues = "https://github.com/i3u8/jev-skill-selection/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
