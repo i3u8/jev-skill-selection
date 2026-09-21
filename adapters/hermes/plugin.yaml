@@ -1,0 +1,6 @@
+name: jev-skill-selection
+version: 0.1.0
+description: Pre-LLM keep/drop filter for Hermes skills (soft context inject).
+entry: __init__.py
+hooks:
+  - pre_llm_call

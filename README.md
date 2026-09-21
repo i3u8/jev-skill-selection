@@ -99,7 +99,7 @@ outcome = before_first_message(HookContext(
 system_prompt_extra = "\n\n".join(outcome.prompt_blocks)
 ```
 
-详见 `src/jev_skill_selection/hook.py` 中的 Claude Code / Codex 接入说明。
+宿主接入见 `adapters/` 与 `docs/INTEGRATION.md`；核心仍见 `src/jev_skill_selection/hook.py`。
 
 ## 测试 / Tests
 
@@ -116,7 +116,33 @@ python -m pytest -q
 2. **默认策略** `noul`（每技能独立 keep/drop，可多留）；`choice` 更接近「软推荐」，适合小目录。
 3. **local 预过滤**（Jev 前 top-k）：省 token，但可能误杀边缘相关技能。
 4. **Model pin** `jev-1.13.0`：发布后请再核对官方 model 列表。
-5. **宿主钩子**：各 agent 产品的扩展点仍在演进；本库只提供宿主无关 core + 示意适配器。
+5. **宿主钩子**：各 agent 产品的扩展点仍在演进；`adapters/` 提供 thin soft-inject 适配，硬过滤按宿主可选。
+
+
+## Host adapters
+
+Thin adapters under `adapters/` soft-inject keep/drop context before the first model turn.
+See **[docs/INTEGRATION.md](docs/INTEGRATION.md)** for install per host.
+
+| Host | Path | Soft | Hard (optional) |
+| --- | --- | --- | --- |
+| Claude Code | `adapters/claude_code/` | `UserPromptSubmit` → `additionalContext` | `skillOverrides` (phase 2) |
+| Codex | `adapters/codex/` | same wire as Claude | `[[skills.config]] enabled=false` |
+| Hermes | `adapters/hermes/` | `pre_llm_call` → `context` | `llm_request` middleware later |
+| OpenCode | `adapters/opencode/` | `chat.message` | `tool.definition` → filter `available_skills` |
+
+Shared helpers: `jev_skill_selection.adapters.common` (stdin parse + host stdout). Default `JEV_MODE=local` (no API key).
+
+## How to test
+
+```bash
+python -m pip install -e ".[dev]"
+python -m pytest -q                 # unit + harness (offline)
+# Optional future live host runs:
+# JEV_HARNESS_LIVE=1 python -m pytest -q tests/harness
+```
+
+Harness tests live in `tests/harness/` (static adapter files, UserPromptSubmit simulation, Hermes register smoke, OpenCode structural/TS check).
 
 ## License
 
