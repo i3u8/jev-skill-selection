@@ -89,34 +89,32 @@ def sketch_generic_middleware(
 
 CLAUDE_CODE_NOTES = """
 Claude Code
------------
-1. Point skill roots at your Claude skills directories.
-2. In a PreToolUse / session-start / custom prompt-builder hook (whichever your
-   version exposes for mutating system context), call:
+|-----------
+Preferred: ``adapters/claude_code/hook.py`` on ``UserPromptSubmit`` (see
+``docs/INTEGRATION.md``). Soft inject → ``hookSpecificOutput.additionalContext``.
 
-       from jev_skill_selection.hook import before_first_message, HookContext
-       from jev_skill_selection import SelectionOptions
+Library-only equivalent::
 
-       outcome = before_first_message(HookContext(
-           user_message=latest_user_text,
-           skill_roots=skill_dirs,
-           options=SelectionOptions(mode="jev", threshold=0.45),
-       ))
-       # Inject only outcome.prompt_blocks (or outcome.kept_skills) into context.
+    from jev_skill_selection.hook import before_first_message, HookContext
+    from jev_skill_selection import SelectionOptions
 
-3. Do this BEFORE the first model message of the turn.
+    outcome = before_first_message(HookContext(
+        user_message=latest_user_text,
+        skill_roots=[".claude/skills", "~/.claude/skills"],
+        options=SelectionOptions(mode="local"),  # or mode="jev"
+    ))
 """
 
 CODEX_NOTES = """
 Codex / OpenAI-style agents
----------------------------
-Wrap the prompt assembly function:
+|---------------------------
+Preferred: ``adapters/codex/hook.py`` (same UserPromptSubmit wire as Claude).
 
-    def build_system_prompt(user_message, all_skills_dirs):
-        outcome = before_first_message(HookContext(
-            user_message=user_message,
-            skill_roots=all_skills_dirs,
-            options=SelectionOptions(mode="local"),
-        ))
-        return BASE_SYSTEM + "\\n\\n" + "\\n\\n".join(outcome.prompt_blocks)
+Library-only::
+
+    outcome = before_first_message(HookContext(
+        user_message=user_message,
+        skill_roots=[".agents/skills", "~/.agents/skills", "~/.codex/skills"],
+        options=SelectionOptions(mode="local"),
+    ))
 """
