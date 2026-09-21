@@ -17,6 +17,7 @@ if _REPO_SRC.is_dir() and str(_REPO_SRC) not in sys.path:
 
 from jev_skill_selection.adapters.common import (  # noqa: E402
     build_soft_context,
+    e2e_log_selection,
     options_from_env,
     run_selection,
 )
@@ -57,7 +58,9 @@ def on_pre_llm_call(payload: Any = None, **kwargs: Any) -> dict[str, Any]:
         return {}
     try:
         outcome = run_selection(message, host="hermes", options=options_from_env())
-        return {"context": build_soft_context(outcome)}
+        ctx = build_soft_context(outcome)
+        e2e_log_selection(host="hermes", message=message, outcome=outcome, soft_context=ctx)
+        return {"context": ctx}
     except Exception as exc:  # noqa: BLE001
         return {"context": f"jev-skill-selection hermes plugin error: {exc}"}
 

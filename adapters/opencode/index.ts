@@ -1,25 +1,23 @@
 /**
- * OpenCode plugin — soft inject via chat.message; optional hard filter via tool.definition.
+ * OpenCode plugin — soft inject via chat.message (+ experimental.chat.system.transform);
+ * optional hard filter via tool.definition.
  *
- * Types: documented against `@opencode-ai/plugin` style (Plugin / Hooks).
- * We avoid a hard dependency so the repo stays Python-first; structural tests
- * parse this file without requiring node_modules.
+ * Export shape matches `@opencode-ai/plugin`:
+ *   `Plugin = (input) => Promise<Hooks>`
  *
- * Soft: shell out to `python -m jev_skill_selection select --json` and append
- * keep/drop context to the user message / system hints.
- * Hard (preferred when available): filter `available_skills` on the skill tool
- * definition so dropped skills never appear.
+ * Soft: shell out to `python -m jev_skill_selection select --json` and inject
+ * keep/drop context into user message parts / system prompt.
+ * Hard: rewrite skill-tool description/parameters so dropped skills never appear
+ * when `available_skills` (or enum of skill names) is observable.
  */
 
+import { appendFileSync, mkdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { dirname, join } from "node:path";
 import { homedir } from "node:os";
-import { join } from "node:path";
 
 /** Minimal structural stand-in for `@opencode-ai/plugin` Plugin type. */
-export type OpenCodePlugin = {
-  name: string;
-  hooks?: Record<string, (...args: any[]) => any>;
-};
+export type OpenCodePlugin = (input: any, options?: any) => Promise<Record<string, any>>;
 
 export type SelectResult = {
   kept_names: string[];
@@ -56,7 +54,18 @@ export function runSelectCli(message: string, roots: string[] = defaultRoots()):
   const mode = env("JEV_MODE", "local") || "local";
   const threshold = env("JEV_THRESHOLD", "0.45");
   const python = env("JEV_PYTHON", "python3") || "python3";
-  const args = ["-m", "jev_skill_selection", "select", "--mode", mode, "--threshold", threshold, "--message", message, "--json"];
+  const args = [
+    "-m",
+    "jev_skill_selection",
+    "select",
+    "--mode",
+    mode,
+    "--threshold",
+    threshold,
+    "--message",
+    message,
+    "--json",
+  ];
   for (const root of roots) {
     args.push("--root", root);
   }
@@ -89,60 +98,148 @@ export function formatSoftContext(result: SelectResult): string {
   return lines.join("\n");
 }
 
-/**
- * Factory compatible with OpenCode plugin loaders.
- *
- * Expected host hooks (names may vary by OpenCode version):
- * - `chat.message` — soft inject context into the outgoing turn
- * - `tool.definition` — hard-filter skill tool `available_skills` when present
- */
-export function createJevSkillSelectionPlugin(): OpenCodePlugin {
+function e2eLog(message: string, result: SelectResult, soft: string): void {
+  const logPath = env("JEV_E2E_LOG");
+  if (!logPath) return;
+  try {
+    mkdirSync(dirname(logPath), { recursive: true });
+    const payload = {
+      ts: Date.now() / 1000,
+      host: "opencode",
+      message: message.slice(0, 500),
+      mode: result.mode ?? "?",
+      kept_names: result.kept_names ?? [],
+      dropped_names: result.dropped_names ?? [],
+      chars_saved: result.chars_saved ?? 0,
+      soft_context_excerpt: soft.slice(0, 1500),
+      marker: "jev_skill_selection_hook_executed",
+    };
+    appendFileSync(logPath, JSON.stringify(payload) + "\n", "utf-8");
+  } catch {
+    // never block the host
+  }
+}
+
+function extractUserText(output: any, input?: any): string {
+  if (output && typeof output === "object") {
+    const msg = output.message;
+    if (typeof msg === "string") return msg;
+    if (msg && typeof msg.content === "string") return msg.content;
+    if (Array.isArray(output.parts)) {
+      return output.parts
+        .map((p: any) => {
+          if (typeof p === "string") return p;
+          if (p?.type === "text") return String(p.text ?? p.content ?? "");
+          if (typeof p?.text === "string") return p.text;
+          return "";
+        })
+        .filter(Boolean)
+        .join("\n");
+    }
+  }
+  if (typeof input?.message === "string") return input.message;
+  if (typeof input?.content === "string") return input.content;
+  return "";
+}
+
+function filterAvailableSkills(params: any, kept: Set<string>): any {
+  if (!params || typeof params !== "object") return params;
+  const next: any = Array.isArray(params) ? [...params] : { ...params };
+  for (const key of ["available_skills", "availableSkills", "skills"]) {
+    const val = next[key];
+    if (Array.isArray(val)) {
+      next[key] = val.filter((s: any) => {
+        const name = typeof s === "string" ? s : s?.name;
+        return typeof name === "string" && kept.has(name);
+      });
+    }
+  }
+  if (next.properties && typeof next.properties === "object") {
+    next.properties = { ...next.properties };
+    for (const key of Object.keys(next.properties)) {
+      const prop = next.properties[key];
+      if (prop?.enum && Array.isArray(prop.enum)) {
+        const filtered = prop.enum.filter((n: any) => typeof n === "string" && kept.has(n));
+        // Only rewrite when it looks like a skill-name enum (intersected with kept/dropped).
+        if (filtered.length && filtered.length < prop.enum.length) {
+          next.properties[key] = { ...prop, enum: filtered };
+        }
+      }
+    }
+  }
+  return next;
+}
+
+function buildHooks() {
   let lastKept: Set<string> = new Set();
   let lastDropped: Set<string> = new Set();
+  let lastSoft = "";
 
   return {
-    name: "jev-skill-selection",
-    hooks: {
-      "chat.message": async (input: any, output: any) => {
-        const message =
-          (typeof input?.message === "string" && input.message) ||
-          (typeof input?.content === "string" && input.content) ||
-          (typeof output?.message === "string" && output.message) ||
-          "";
-        if (!message.trim()) return;
-        const result = runSelectCli(message);
-        if (!result) return;
-        lastKept = new Set(result.kept_names ?? []);
-        lastDropped = new Set(result.dropped_names ?? []);
-        const ctx = formatSoftContext(result);
-        if (output && typeof output === "object") {
-          output.additionalContext = ctx;
-          if (typeof output.message === "string") {
-            output.message = `${output.message}\n\n${ctx}`;
-          }
+    "chat.message": async (input: any, output: any) => {
+      const message = extractUserText(output, input);
+      if (!message.trim()) return;
+      const result = runSelectCli(message);
+      if (!result) return;
+      lastKept = new Set(result.kept_names ?? []);
+      lastDropped = new Set(result.dropped_names ?? []);
+      const ctx = formatSoftContext(result);
+      lastSoft = ctx;
+      e2eLog(message, result, ctx);
+      if (output && typeof output === "object") {
+        (output as any).additionalContext = ctx;
+        if (Array.isArray(output.parts)) {
+          output.parts = [...output.parts, { type: "text", text: `\n\n${ctx}` }];
         }
-        return { additionalContext: ctx, kept: [...lastKept], dropped: [...lastDropped] };
-      },
-      "tool.definition": async (input: any, output: any) => {
-        // Hard filter: when the tool exposes available_skills, drop non-kept names.
-        const toolName = String(input?.toolName ?? input?.name ?? output?.name ?? "");
-        const looksLikeSkillTool = /skill/i.test(toolName);
-        if (!looksLikeSkillTool || lastKept.size === 0) return;
-        const target = output ?? input;
-        if (!target || typeof target !== "object") return;
-        const skills = target.available_skills ?? target.availableSkills;
-        if (!Array.isArray(skills)) return;
-        const filtered = skills.filter((s: any) => {
-          const name = typeof s === "string" ? s : s?.name;
-          return typeof name === "string" && lastKept.has(name);
-        });
-        if (target.available_skills) target.available_skills = filtered;
-        if (target.availableSkills) target.availableSkills = filtered;
-        return target;
-      },
+      }
+    },
+    "experimental.chat.system.transform": async (_input: any, output: any) => {
+      if (!lastSoft || !output || !Array.isArray(output.system)) return;
+      output.system.push(lastSoft);
+    },
+    "tool.definition": async (input: any, output: any) => {
+      const toolName = String(input?.toolID ?? input?.toolName ?? input?.name ?? "");
+      const looksLikeSkillTool = /skill/i.test(toolName);
+      if (!looksLikeSkillTool || lastKept.size === 0 || !output) return;
+      if (typeof output.description === "string" && lastDropped.size) {
+        let desc = output.description;
+        for (const name of lastDropped) {
+          const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          desc = desc.replace(new RegExp(`\\b${escaped}\\b`, "gi"), "");
+        }
+        output.description = desc;
+      }
+      if (output.parameters) {
+        output.parameters = filterAvailableSkills(output.parameters, lastKept);
+      }
+      for (const key of ["available_skills", "availableSkills"] as const) {
+        const skills = (output as any)[key];
+        if (Array.isArray(skills)) {
+          (output as any)[key] = skills.filter((s: any) => {
+            const name = typeof s === "string" ? s : s?.name;
+            return typeof name === "string" && lastKept.has(name);
+          });
+        }
+      }
     },
   };
 }
 
-/** Default export for `import plugin from "..."` loaders. */
-export default createJevSkillSelectionPlugin;
+/**
+ * Legacy/test factory returning `{ name, hooks }` (used by offline harness).
+ * Real OpenCode loads the default Plugin export below.
+ */
+export function createJevSkillSelectionPlugin(): {
+  name: string;
+  hooks: Record<string, (...args: any[]) => any>;
+} {
+  return {
+    name: "jev-skill-selection",
+    hooks: buildHooks(),
+  };
+}
+
+/** Real OpenCode Plugin entrypoint. */
+const JevSkillSelectionPlugin: OpenCodePlugin = async (_input, _options) => buildHooks();
+
+export default JevSkillSelectionPlugin;

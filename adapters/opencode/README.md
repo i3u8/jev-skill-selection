@@ -18,7 +18,9 @@ export type Plugin = {
 };
 ```
 
-Point OpenCode at `adapters/opencode/index.ts` (or a built copy) per your host’s plugin docs.
+Copy/symlink `adapters/opencode/index.ts` into `.opencode/plugins/` or `~/.config/opencode/plugins/`.
+Default export is a real OpenCode `Plugin` (`async (input) => Hooks`) with `chat.message`,
+`experimental.chat.system.transform`, and `tool.definition` hooks.
 
 ## Skill roots
 

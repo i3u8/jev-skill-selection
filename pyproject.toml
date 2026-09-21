@@ -41,3 +41,7 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+  "live: real host CLI e2e gated by JEV_HARNESS_LIVE=1",
+]
+

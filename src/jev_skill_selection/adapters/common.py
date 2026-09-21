@@ -216,6 +216,43 @@ def run_selection(
     )
 
 
+
+def e2e_log_selection(
+    *,
+    host: str,
+    message: str,
+    outcome: HookOutcome,
+    soft_context: str | None = None,
+) -> None:
+    """Append a JSON line to ``JEV_E2E_LOG`` when set (live harness side-channel).
+
+    Never writes secrets. Safe no-op when the env var is unset or unwritable.
+    """
+    log_path = os.environ.get("JEV_E2E_LOG", "").strip()
+    if not log_path:
+        return
+    import time
+
+    payload = {
+        "ts": time.time(),
+        "host": host,
+        "message": message[:500],
+        "mode": outcome.result.mode,
+        "kept_names": list(outcome.result.kept_names),
+        "dropped_names": list(outcome.result.dropped_names),
+        "chars_saved": outcome.result.chars_saved,
+        "soft_context_excerpt": (soft_context or "")[:1500],
+        "marker": "jev_skill_selection_hook_executed",
+    }
+    try:
+        p = Path(log_path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with p.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+
+
 def handle_user_prompt_submit_stdin(
     stdin_text: str,
     *,
@@ -235,4 +272,5 @@ def handle_user_prompt_submit_stdin(
     )
     event = parsed.get("hook_event_name") or "UserPromptSubmit"
     ctx = build_soft_context(outcome)
+    e2e_log_selection(host=host, message=parsed["prompt"], outcome=outcome, soft_context=ctx)
     return emit_user_prompt_submit(ctx, hook_event_name=str(event))

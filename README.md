@@ -139,7 +139,8 @@ Shared helpers: `jev_skill_selection.adapters.common` (stdin parse + host stdout
 python -m pip install -e ".[dev]"
 python -m pytest -q                 # unit + harness (offline)
 # Optional future live host runs:
-# JEV_HARNESS_LIVE=1 python -m pytest -q tests/harness
+./scripts/run_live_e2e.sh
+# JEV_HARNESS_LIVE=1 python -m pytest -m live -q tests/harness/live
 ```
 
 Harness tests live in `tests/harness/` (static adapter files, UserPromptSubmit simulation, Hermes register smoke, OpenCode structural/TS check).
