@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="960" height="540" viewBox="0 0 960 540"
+     role="img" aria-label="jev-skill-selection principle: keep relevant skills, drop the rest, save tokens">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1220"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#000000" flood-opacity="0.4"/>
+    </filter>
+    <style type="text/css"><![CDATA[
+      .sans { font-family: "Noto Sans CJK SC", "Noto Sans", "DejaVu Sans", sans-serif; }
+      .mono { font-family: "Noto Sans Mono", "DejaVu Sans Mono", monospace; }
+    ]]></style>
+  </defs>
+
+  <rect width="960" height="540" fill="url(#bgGrad)"/>
+  <rect x="24" y="24" width="912" height="492" rx="20" fill="#0f172a" stroke="#1e293b" stroke-width="1.5"/>
+
+  <!-- Header -->
+  <text x="48" y="62" class="sans" font-weight="700" font-size="22" fill="#f8fafc">jev-skill-selection</text>
+  <text x="48" y="84" class="sans" font-weight="500" font-size="13" fill="#94a3b8">Before the first model message — keep only relevant SKILL.md</text>
+  <text x="48" y="102" class="sans" font-weight="500" font-size="11" fill="#64748b">在首条模型消息前筛选技能，节省 tokens / 上下文</text>
+
+  <!-- Beat pills (SMIL fill) -->
+  <g transform="translate(620, 48)">
+    <rect id="pill1" x="0" y="0" width="70" height="26" rx="13" fill="#22d3ee">
+      <animate attributeName="fill" dur="8s" repeatCount="indefinite"
+               values="#22d3ee;#22d3ee;#334155;#334155;#334155;#334155;#22d3ee"
+               keyTimes="0;0.24;0.26;0.5;0.75;0.97;1"/>
+    </rect>
+    <text id="pill1t" x="35" y="17" text-anchor="middle" class="mono" font-weight="700" font-size="11" fill="#0f172a">1 pain</text>
+    <rect id="pill2" x="78" y="0" width="70" height="26" rx="13" fill="#334155">
+      <animate attributeName="fill" dur="8s" repeatCount="indefinite"
+               values="#334155;#334155;#22d3ee;#22d3ee;#334155;#334155;#334155"
+               keyTimes="0;0.24;0.26;0.42;0.44;0.97;1"/>
+    </rect>
+    <text x="113" y="17" text-anchor="middle" class="mono" font-weight="700" font-size="11" fill="#94a3b8">2 msg</text>
+    <rect id="pill3" x="156" y="0" width="78" height="26" rx="13" fill="#334155">
+      <animate attributeName="fill" dur="8s" repeatCount="indefinite"
+               values="#334155;#334155;#334155;#22d3ee;#22d3ee;#334155;#334155"
+               keyTimes="0;0.42;0.44;0.46;0.68;0.70;1"/>
+    </rect>
+    <text x="195" y="17" text-anchor="middle" class="mono" font-weight="700" font-size="11" fill="#94a3b8">3 select</text>
+    <rect id="pill4" x="242" y="0" width="70" height="26" rx="13" fill="#334155">
+      <animate attributeName="fill" dur="8s" repeatCount="indefinite"
+               values="#334155;#334155;#334155;#334155;#22d3ee;#22d3ee;#334155"
+               keyTimes="0;0.68;0.70;0.72;0.74;0.97;1"/>
+    </rect>
+    <text x="277" y="17" text-anchor="middle" class="mono" font-weight="700" font-size="11" fill="#94a3b8">4 save</text>
+  </g>
+
+  <!-- LEFT Skills -->
+  <rect x="48" y="130" width="280" height="340" rx="14" fill="#1e293b" stroke="#334155" stroke-width="1.5" filter="url(#softShadow)"/>
+  <text x="68" y="158" class="sans" font-weight="600" font-size="13" fill="#cbd5e1">Skills (5) · SKILL.md</text>
+  <text x="68" y="176" class="sans" font-size="11" fill="#64748b">全部技能进入上下文？</text>
+
+  <g id="skill-git">
+    <rect x="68" y="196" width="240" height="40" rx="10" fill="#164e63" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="88" y="221" class="mono" font-weight="700" font-size="12" fill="#a5f3fc">git-ops</text>
+  </g>
+  <g id="keepBadge" opacity="0">
+    <animate attributeName="opacity" dur="8s" repeatCount="indefinite"
+             values="0;0;1;1;0" keyTimes="0;0.44;0.48;0.95;1"/>
+    <rect x="230" y="202" width="58" height="28" rx="8" fill="#059669"/>
+    <text x="259" y="221" text-anchor="middle" class="mono" font-weight="700" font-size="12" fill="#ecfdf5">keep</text>
+  </g>
+
+  <g id="droppedSkills">
+    <animate attributeName="opacity" dur="8s" repeatCount="indefinite"
+             values="1;1;0.35;0.35;1" keyTimes="0;0.48;0.55;0.95;1"/>
+    <rect x="68" y="246" width="240" height="40" rx="10" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+    <text x="88" y="271" class="mono" font-weight="700" font-size="12" fill="#cbd5e1">docker-deploy</text>
+    <rect x="68" y="296" width="240" height="40" rx="10" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+    <text x="88" y="321" class="mono" font-weight="700" font-size="12" fill="#cbd5e1">pdf-ocr</text>
+    <rect x="68" y="346" width="240" height="40" rx="10" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+    <text x="88" y="371" class="mono" font-weight="700" font-size="12" fill="#cbd5e1">slack-bot</text>
+    <rect x="68" y="396" width="240" height="40" rx="10" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+    <text x="88" y="421" class="mono" font-weight="700" font-size="12" fill="#cbd5e1">weather-api</text>
+  </g>
+  <g id="dropBadges" opacity="0">
+    <animate attributeName="opacity" dur="8s" repeatCount="indefinite"
+             values="0;0;1;1;0" keyTimes="0;0.48;0.52;0.95;1"/>
+    <rect x="230" y="252" width="58" height="28" rx="8" fill="#b91c1c"/>
+    <text x="259" y="271" text-anchor="middle" class="mono" font-weight="700" font-size="12" fill="#fef2f2">drop</text>
+    <rect x="230" y="302" width="58" height="28" rx="8" fill="#b91c1c"/>
+    <text x="259" y="321" text-anchor="middle" class="mono" font-weight="700" font-size="12" fill="#fef2f2">drop</text>
+    <rect x="230" y="352" width="58" height="28" rx="8" fill="#b91c1c"/>
+    <text x="259" y="371" text-anchor="middle" class="mono" font-weight="700" font-size="12" fill="#fef2f2">drop</text>
+    <rect x="230" y="402" width="58" height="28" rx="8" fill="#b91c1c"/>
+    <text x="259" y="421" text-anchor="middle" class="mono" font-weight="700" font-size="12" fill="#fef2f2">drop</text>
+  </g>
+
+  <!-- CENTER -->
+  <g id="userMsg" opacity="0">
+    <animate attributeName="opacity" dur="8s" repeatCount="indefinite"
+             values="0;0;1;1;0" keyTimes="0;0.24;0.30;0.95;1"/>
+    <rect x="360" y="150" width="240" height="72" rx="12" fill="#312e81" stroke="#818cf8" stroke-width="1.5" filter="url(#softShadow)"/>
+    <text x="380" y="174" class="sans" font-weight="600" font-size="13" fill="#c7d2fe">User message</text>
+    <text x="380" y="198" class="mono" font-weight="700" font-size="12" fill="#e0e7ff">"git commit &amp; push"</text>
+  </g>
+
+  <g id="selectBox" opacity="0">
+    <animate attributeName="opacity" dur="8s" repeatCount="indefinite"
+             values="0;0;1;1;0" keyTimes="0;0.42;0.48;0.95;1"/>
+    <rect x="360" y="250" width="240" height="100" rx="12" fill="#0c4a6e" stroke="#38bdf8" stroke-width="1.5" filter="url(#softShadow)"/>
+    <text x="380" y="278" class="sans" font-weight="600" font-size="13" fill="#bae6fd">select_skills()</text>
+    <text x="380" y="300" class="mono" font-weight="700" font-size="12" fill="#86efac">keep: git-ops</text>
+    <text x="380" y="322" class="mono" font-weight="700" font-size="12" fill="#fca5a5">drop: 4 others</text>
+  </g>
+
+  <g id="arrowBloat">
+    <animate attributeName="opacity" dur="8s" repeatCount="indefinite"
+             values="1;1;0;0;1" keyTimes="0;0.46;0.54;0.95;1"/>
+    <path d="M330 300 L350 300" stroke="#f87171" stroke-width="3" stroke-linecap="round"/>
+    <polygon points="350,294 362,300 350,306" fill="#f87171"/>
+  </g>
+  <g id="arrowKeep" opacity="0">
+    <animate attributeName="opacity" dur="8s" repeatCount="indefinite"
+             values="0;0;1;1;0" keyTimes="0;0.66;0.72;0.95;1"/>
+    <path d="M330 216 L350 216" stroke="#34d399" stroke-width="3" stroke-linecap="round"/>
+    <polygon points="350,210 362,216 350,222" fill="#34d399"/>
+    <path d="M600 300 L620 300" stroke="#34d399" stroke-width="3" stroke-linecap="round"/>
+    <polygon points="620,294 632,300 620,306" fill="#34d399"/>
+  </g>
+
+  <!-- RIGHT -->
+  <g id="contextBloat">
+    <animate attributeName="opacity" dur="8s" repeatCount="indefinite"
+             values="1;1;0;0;1" keyTimes="0;0.68;0.74;0.95;1"/>
+    <rect x="640" y="130" width="280" height="200" rx="14" fill="#3f1d24" stroke="#7f1d1d" stroke-width="1.5" filter="url(#softShadow)"/>
+    <text x="660" y="158" class="sans" font-weight="600" font-size="13" fill="#fecaca">Context (bloated)</text>
+    <text x="660" y="176" class="sans" font-size="11" fill="#64748b">5 skills 全部塞入</text>
+    <text x="660" y="220" class="mono" font-weight="700" font-size="16" fill="#fca5a5">chars: 1431</text>
+    <text x="660" y="250" class="mono" font-weight="700" font-size="12" fill="#f87171">token bloat</text>
+    <text x="660" y="280" class="mono" font-size="11" fill="#94a3b8">git · docker · pdf · slack · weather</text>
+  </g>
+
+  <g id="promptLean" opacity="0">
+    <animate attributeName="opacity" dur="8s" repeatCount="indefinite"
+             values="0;0;1;1;0" keyTimes="0;0.68;0.74;0.95;1"/>
+    <rect x="640" y="130" width="280" height="200" rx="14" fill="#052e1c" stroke="#065f46" stroke-width="1.5" filter="url(#softShadow)"/>
+    <text x="660" y="158" class="sans" font-weight="600" font-size="13" fill="#bbf7d0">Prompt (lean)</text>
+    <text x="660" y="176" class="sans" font-size="11" fill="#64748b">仅保留相关技能</text>
+    <rect x="660" y="196" width="200" height="36" rx="8" fill="#064e3b" stroke="#34d399" stroke-width="1.5"/>
+    <text x="676" y="219" class="mono" font-weight="700" font-size="12" fill="#a7f3d0">git-ops only</text>
+    <text x="660" y="262" class="mono" font-weight="700" font-size="16" fill="#86efac">chars: 393</text>
+    <text x="660" y="288" class="mono" font-size="11" fill="#64748b">was 1431</text>
+  </g>
+
+  <g id="savedBadge" opacity="0">
+    <animate attributeName="opacity" dur="8s" repeatCount="indefinite"
+             values="0;0;1;1;0" keyTimes="0;0.72;0.78;0.95;1"/>
+    <rect x="640" y="350" width="280" height="120" rx="14" fill="#022c22" stroke="#10b981" stroke-width="2" filter="url(#softShadow)"/>
+    <text x="780" y="390" text-anchor="middle" class="sans" font-weight="600" font-size="12" fill="#86efac">chars_saved</text>
+    <text x="780" y="428" text-anchor="middle" class="sans" font-weight="700" font-size="32" fill="#34d399">1038</text>
+    <text x="780" y="452" text-anchor="middle" class="sans" font-size="11" fill="#64748b">1431 → 393 · keep 1 / drop 4</text>
+  </g>
+</svg>

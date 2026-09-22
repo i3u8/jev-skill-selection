@@ -1,0 +1,19 @@
+{
+  "name": "jev-skill-selection-opencode",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenCode plugin adapter for jev-skill-selection (soft + optional hard skill filter).",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "peerDependencies": {
+    "@opencode-ai/plugin": "*"
+  },
+  "peerDependenciesMeta": {
+    "@opencode-ai/plugin": {
+      "optional": true
+    }
+  }
+}

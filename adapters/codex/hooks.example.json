@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": ["/abs/path/to/jev-skill-selection/adapters/codex/hook.py"],
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

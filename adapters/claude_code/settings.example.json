@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": ["${CLAUDE_PROJECT_DIR}/adapters/claude_code/hook.py"],
+            "timeout": 30,
+            "statusMessage": "Filtering skills (jev-skill-selection)…"
+          }
+        ]
+      }
+    ]
+  }
+}
